@@ -2,65 +2,158 @@
 package plugindemo
 
 import (
-	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"text/template"
+	"os"
 )
 
 // Config the plugin configuration.
 type Config struct {
-	Headers map[string]string `json:"headers,omitempty"`
+	UsernameKey       string `json:",omitempty"`
+	PasswordKey       string `json:",omitempty"`
+	AuthenticationKey string `json:",omitempty"`
+
+	LogLevel LogLevel `json:",omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		Headers: make(map[string]string),
+		UsernameKey:       "username",
+		PasswordKey:       "password",
+		AuthenticationKey: "authentication",
+
+		LogLevel: Warning,
 	}
 }
 
 // Demo a Demo plugin.
 type Demo struct {
-	next     http.Handler
-	headers  map[string]string
-	name     string
-	template *template.Template
+	next   http.Handler
+	config *Config
+	name   string
 }
 
-// New created a new Demo plugin.
+// New creates a new Demo plugin.
+//
+//goland:noinspection GoUnusedParameter (required by Traefik)
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	if len(config.Headers) == 0 {
-		return nil, fmt.Errorf("headers cannot be empty")
-	}
+	config.log(Info, name, "initializing")
 
 	return &Demo{
-		headers:  config.Headers,
-		next:     next,
-		name:     name,
-		template: template.New("demo").Delims("[[", "]]"),
+		config: config,
+		next:   next,
+		name:   name,
 	}, nil
 }
 
-func (a *Demo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	for key, value := range a.headers {
-		tmpl, err := a.template.Parse(value)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+func (a *Demo) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
+	a.log(Debug, "serving request '%s' ('%s')", request.URL, request.RequestURI)
 
-		writer := &bytes.Buffer{}
+	a.modifyRequest(request)
 
-		err = tmpl.Execute(writer, req)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	a.next.ServeHTTP(rw, request)
+}
 
-		req.Header.Set(key, writer.String())
+func (c *Config) log(level LogLevel, name, format string, args ...any) {
+	if level <= c.LogLevel {
+		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "Demo", name, level.String(), fmt.Sprintf(format, args...)))
+	}
+}
+
+func (a *Demo) log(level LogLevel, format string, args ...any) {
+	a.config.log(level, a.name, format, args...)
+}
+
+func (a *Demo) modifyRequest(request *http.Request) {
+	if request.Header.Get(AuthenticationHeader) != "" {
+		a.log(Debug, "found authentication header, no-op")
+		return
 	}
 
-	a.next.ServeHTTP(rw, req)
+	query := request.URL.Query()
+
+	if authentication := query.Get(a.config.AuthenticationKey); authentication != "" {
+		a.log(Debug, "found authentication query param ('%s': '%s'), moving to header", a.config.AuthenticationKey, authentication)
+
+		query.Del(a.config.AuthenticationKey)
+		request.URL.RawQuery = query.Encode()
+
+		request.Header.Add(AuthenticationHeader, authentication)
+
+		return
+	}
+
+	username := query.Get(a.config.UsernameKey)
+	if username != "" {
+		// Allow for not specifying a password
+		password := query.Get(a.config.PasswordKey)
+
+		authentication := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+
+		a.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", a.config.UsernameKey, username, a.config.PasswordKey, password, authentication)
+
+		query.Del(a.config.UsernameKey)
+		query.Del(a.config.PasswordKey)
+		request.URL.RawQuery = query.Encode()
+
+		request.Header.Add(AuthenticationHeader, authentication)
+
+		return
+	}
+
+	a.log(Debug, "found no headers or params")
+}
+
+const AuthenticationHeader = "Authentication"
+
+type LogLevel int
+
+const (
+	None = iota
+	Error
+	Warning
+	Info
+	Verbose
+	Debug
+	All
+)
+
+func (l *LogLevel) String() string {
+	return [...]string{"None", "Error", "Warning", "Info", "Verbose", "Debug", "All"}[*l]
+}
+
+func (l *LogLevel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.String())
+}
+
+func (l *LogLevel) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	switch s {
+	case "None":
+		*l = None
+	case "Error":
+		*l = Error
+	case "Warning":
+		*l = Warning
+	case "Info":
+		*l = Info
+	case "Verbose":
+		*l = Verbose
+	case "Debug":
+		*l = Debug
+	case "All":
+		*l = All
+	default:
+		return fmt.Errorf("invalid LogLevel '%s'", s)
+	}
+
+	return nil
 }
