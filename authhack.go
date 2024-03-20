@@ -1,5 +1,4 @@
-// Package plugindemo a demo plugin.
-package plugindemo
+package authhack
 
 import (
 	"context"
@@ -10,7 +9,7 @@ import (
 	"os"
 )
 
-// Config the plugin configuration.
+// Config is the configuration for the plugin.
 type Config struct {
 	UsernameKey       string `json:",omitempty"`
 	PasswordKey       string `json:",omitempty"`
@@ -30,27 +29,27 @@ func CreateConfig() *Config {
 	}
 }
 
-// Demo a Demo plugin.
-type Demo struct {
+// AuthHack is the plugin.
+type AuthHack struct {
 	next   http.Handler
 	config *Config
 	name   string
 }
 
-// New creates a new Demo plugin.
+// New creates a new plugin.
 //
 //goland:noinspection GoUnusedParameter (required by Traefik)
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	config.log(Info, name, "initializing")
 
-	return &Demo{
+	return &AuthHack{
 		config: config,
 		next:   next,
 		name:   name,
 	}, nil
 }
 
-func (a *Demo) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
+func (a *AuthHack) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
 	a.log(Debug, "serving request '%s' ('%s')", request.URL, request.RequestURI)
 
 	a.modifyRequest(request)
@@ -60,15 +59,15 @@ func (a *Demo) ServeHTTP(rw http.ResponseWriter, request *http.Request) {
 
 func (c *Config) log(level LogLevel, name, format string, args ...any) {
 	if level <= c.LogLevel {
-		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "Demo", name, level.String(), fmt.Sprintf(format, args...)))
+		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "AuthHack", name, level.String(), fmt.Sprintf(format, args...)))
 	}
 }
 
-func (a *Demo) log(level LogLevel, format string, args ...any) {
+func (a *AuthHack) log(level LogLevel, format string, args ...any) {
 	a.config.log(level, a.name, format, args...)
 }
 
-func (a *Demo) modifyRequest(request *http.Request) {
+func (a *AuthHack) modifyRequest(request *http.Request) {
 	if request.Header.Get(AuthenticationHeader) != "" {
 		a.log(Debug, "found authentication header, no-op")
 		return

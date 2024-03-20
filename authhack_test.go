@@ -1,4 +1,4 @@
-package plugindemo_test
+package authhack_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/traefik/plugindemo"
+	"github.com/traefik/authhack"
 )
 
 const DefaultAuthenticationKey = "authentication"
@@ -18,7 +18,7 @@ const TestPassword = "testpassword"
 const TestUsernameEncoded = "dGVzdHVzZXJuYW1lOg=="
 const TestUsernameAndPasswordEncoded = "dGVzdHVzZXJuYW1lOnRlc3RwYXNzd29yZA=="
 
-func TestDemo_ServeHTTP_NoAuth(t *testing.T) {
+func TestAuthHack_ServeHTTP_NoAuth(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {})
@@ -29,7 +29,7 @@ func TestDemo_ServeHTTP_NoAuth(t *testing.T) {
 	assertAuthenticationHeader(t, request, "")
 }
 
-func TestDemo_ServeHTTP_UserQueryParam_Default(t *testing.T) {
+func TestAuthHack_ServeHTTP_UserQueryParam_Default(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {
@@ -44,7 +44,7 @@ func TestDemo_ServeHTTP_UserQueryParam_Default(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameEncoded)
 }
 
-func TestDemo_ServeHTTP_UserAndPassQueryParam_Default(t *testing.T) {
+func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Default(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {
@@ -60,7 +60,7 @@ func TestDemo_ServeHTTP_UserAndPassQueryParam_Default(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncoded)
 }
 
-func TestDemo_ServeHTTP_UserAndPassQueryParam_Custom(t *testing.T) {
+func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Custom(t *testing.T) {
 	const testUsernameKey = DefaultUsernameKey + "-custom"
 	const testPasswordKey = DefaultPasswordKey + "-custom"
 
@@ -83,7 +83,7 @@ func TestDemo_ServeHTTP_UserAndPassQueryParam_Custom(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncoded)
 }
 
-func TestDemo_ServeHTTP_AuthQueryParam_Default(t *testing.T) {
+func TestAuthHack_ServeHTTP_AuthQueryParam_Default(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {
@@ -98,7 +98,7 @@ func TestDemo_ServeHTTP_AuthQueryParam_Default(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncoded)
 }
 
-func TestDemo_ServeHTTP_AuthQueryParam_Custom(t *testing.T) {
+func TestAuthHack_ServeHTTP_AuthQueryParam_Custom(t *testing.T) {
 	const testAuthenticationKey = DefaultAuthenticationKey + "-custom"
 
 	config := createTestConfig()
@@ -117,11 +117,11 @@ func TestDemo_ServeHTTP_AuthQueryParam_Custom(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncoded)
 }
 
-func TestDemo_ServeHTTP_AuthHeader(t *testing.T) {
+func TestAuthHack_ServeHTTP_AuthHeader(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {
-		request.Header.Add(plugindemo.AuthenticationHeader, TestUsernameAndPasswordEncoded)
+		request.Header.Add(authhack.AuthenticationHeader, TestUsernameAndPasswordEncoded)
 	})
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
@@ -130,20 +130,20 @@ func TestDemo_ServeHTTP_AuthHeader(t *testing.T) {
 	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncoded)
 }
 
-func createTestConfig() *plugindemo.Config {
-	config := plugindemo.CreateConfig()
-	config.LogLevel = plugindemo.All
+func createTestConfig() *authhack.Config {
+	config := authhack.CreateConfig()
+	config.LogLevel = authhack.All
 
 	return config
 }
 
-func serveHTTP(t *testing.T, config *plugindemo.Config, requestSetup func(request *http.Request)) *http.Request {
+func serveHTTP(t *testing.T, config *authhack.Config, requestSetup func(request *http.Request)) *http.Request {
 	t.Helper()
 
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, request *http.Request) {})
 
-	handler, err := plugindemo.New(ctx, next, config, "test")
+	handler, err := authhack.New(ctx, next, config, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,5 +181,5 @@ func assertHeader(t *testing.T, request *http.Request, key, expected string) {
 func assertAuthenticationHeader(t *testing.T, request *http.Request, expected string) {
 	t.Helper()
 
-	assertHeader(t, request, plugindemo.AuthenticationHeader, expected)
+	assertHeader(t, request, authhack.AuthenticationHeader, expected)
 }

@@ -1,12 +1,9 @@
-displayName: Demo Plugin
+displayName: Auth Hack
 type: middleware
 iconPath: .assets/icon.png
 
-import: github.com/traefik/plugindemo
+import: github.com/traefik/authhack
 
-summary: '[Demo] Add Request Header'
+summary: 'Adds authentication headers from query parameters'
 
 testData:
-  Headers:
-    X-Demo: test
-    X-URL: '{{URL}}'
