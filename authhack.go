@@ -12,6 +12,9 @@ import (
 
 /*
 TODO:
+- Set a cookie with the credentials so they're "sticky" for subsequent requests
+- HTTP redirect with setting the cookie to clear the query string parameters
+- Logs don't work (even if Traefik itself uses debug logs)
 - If keys are empty, that functionality should be disabled
 - Currently have to specify the log level as an int in Traefik config
 */
