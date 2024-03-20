@@ -12,7 +12,7 @@ import (
 	"github.com/traefik/authhack"
 )
 
-const DefaultAuthenticationKey = "authentication"
+const DefaultAuthorizationKey = "authorization"
 const DefaultUsernameKey = "username"
 const DefaultPasswordKey = "password"
 
@@ -50,8 +50,8 @@ func TestAuthHack_ServeHTTP_NoAuth(t *testing.T) {
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, "")
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, "")
 }
 
 func TestAuthHack_ServeHTTP_UserQueryParam_Default(t *testing.T) {
@@ -65,8 +65,8 @@ func TestAuthHack_ServeHTTP_UserQueryParam_Default(t *testing.T) {
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Default(t *testing.T) {
@@ -81,8 +81,8 @@ func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Default(t *testing.T) {
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Custom(t *testing.T) {
@@ -104,8 +104,8 @@ func TestAuthHack_ServeHTTP_UserAndPassQueryParam_Custom(t *testing.T) {
 	assertQueryParam(t, request, testUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
 	assertQueryParam(t, request, testPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_AuthQueryParam_Default_WithoutPrefix(t *testing.T) {
@@ -113,14 +113,14 @@ func TestAuthHack_ServeHTTP_AuthQueryParam_Default_WithoutPrefix(t *testing.T) {
 
 	request := serveHTTP(t, config, func(request *http.Request) {
 		query := request.URL.Query()
-		query.Add(DefaultAuthenticationKey, TestUsernameAndPasswordEncodedWithoutPrefix)
+		query.Add(DefaultAuthorizationKey, TestUsernameAndPasswordEncodedWithoutPrefix)
 		request.URL.RawQuery = query.Encode()
 	})
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_AuthQueryParam_Default_WithPrefix(t *testing.T) {
@@ -128,46 +128,46 @@ func TestAuthHack_ServeHTTP_AuthQueryParam_Default_WithPrefix(t *testing.T) {
 
 	request := serveHTTP(t, config, func(request *http.Request) {
 		query := request.URL.Query()
-		query.Add(DefaultAuthenticationKey, TestUsernameAndPasswordEncodedWithPrefix)
+		query.Add(DefaultAuthorizationKey, TestUsernameAndPasswordEncodedWithPrefix)
 		request.URL.RawQuery = query.Encode()
 	})
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_AuthQueryParam_Custom(t *testing.T) {
-	const testAuthenticationKey = DefaultAuthenticationKey + "-custom"
+	const testAuthorizationKey = DefaultAuthorizationKey + "-custom"
 
 	config := createTestConfig()
-	config.AuthenticationKey = testAuthenticationKey
+	config.AuthorizationKey = testAuthorizationKey
 
 	request := serveHTTP(t, config, func(request *http.Request) {
 		query := request.URL.Query()
-		query.Add(testAuthenticationKey, TestUsernameAndPasswordEncodedWithPrefix)
+		query.Add(testAuthorizationKey, TestUsernameAndPasswordEncodedWithPrefix)
 		request.URL.RawQuery = query.Encode()
 	})
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertQueryParam(t, request, testAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertQueryParam(t, request, testAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func TestAuthHack_ServeHTTP_AuthHeader(t *testing.T) {
 	config := createTestConfig()
 
 	request := serveHTTP(t, config, func(request *http.Request) {
-		request.Header.Add(authhack.AuthenticationHeader, TestUsernameAndPasswordEncodedWithPrefix)
+		request.Header.Add(authhack.AuthorizationHeader, TestUsernameAndPasswordEncodedWithPrefix)
 	})
 
 	assertQueryParam(t, request, DefaultUsernameKey, "")
 	assertQueryParam(t, request, DefaultPasswordKey, "")
-	assertQueryParam(t, request, DefaultAuthenticationKey, "")
-	assertAuthenticationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
+	assertQueryParam(t, request, DefaultAuthorizationKey, "")
+	assertAuthorizationHeader(t, request, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
 func createTestConfig() *authhack.Config {
@@ -218,8 +218,8 @@ func assertHeader(t *testing.T, request *http.Request, key, expected string) {
 	}
 }
 
-func assertAuthenticationHeader(t *testing.T, request *http.Request, expected string) {
+func assertAuthorizationHeader(t *testing.T, request *http.Request, expected string) {
 	t.Helper()
 
-	assertHeader(t, request, authhack.AuthenticationHeader, expected)
+	assertHeader(t, request, authhack.AuthorizationHeader, expected)
 }

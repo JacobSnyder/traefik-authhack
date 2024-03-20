@@ -4,7 +4,7 @@ iconPath: .assets/icon.png
 
 import: github.com/traefik/authhack
 
-summary: 'Adds authentication headers from query parameters'
+summary: 'Adds authorization headers from query parameters'
 
 testData:
   UsernameKey: username

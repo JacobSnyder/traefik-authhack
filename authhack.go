@@ -13,13 +13,14 @@ import (
 /*
 TODO:
 - If keys are empty, that functionality should be disabled
+- Currently have to specify the log level as an int in Traefik config
 */
 
 // Config is the configuration for the plugin.
 type Config struct {
-	UsernameKey       string `json:",omitempty"`
-	PasswordKey       string `json:",omitempty"`
-	AuthenticationKey string `json:",omitempty"`
+	UsernameKey      string `json:",omitempty"`
+	PasswordKey      string `json:",omitempty"`
+	AuthorizationKey string `json:",omitempty"`
 
 	LogLevel LogLevel `json:",omitempty"`
 }
@@ -27,9 +28,9 @@ type Config struct {
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		UsernameKey:       "username",
-		PasswordKey:       "password",
-		AuthenticationKey: "authentication",
+		UsernameKey:      "username",
+		PasswordKey:      "password",
+		AuthorizationKey: "authorization",
 
 		LogLevel: Warning,
 	}
@@ -74,24 +75,24 @@ func (a *AuthHack) log(level LogLevel, format string, args ...any) {
 }
 
 func (a *AuthHack) modifyRequest(request *http.Request) {
-	if request.Header.Get(AuthenticationHeader) != "" {
-		a.log(Debug, "found authentication header, no-op")
+	if request.Header.Get(AuthorizationHeader) != "" {
+		a.log(Debug, "found authorization header, no-op")
 		return
 	}
 
 	query := request.URL.Query()
 
-	if authentication := query.Get(a.config.AuthenticationKey); authentication != "" {
-		if !strings.HasPrefix(authentication, BasicPrefix) {
-			authentication = BasicPrefix + authentication
+	if authorization := query.Get(a.config.AuthorizationKey); authorization != "" {
+		if !strings.HasPrefix(authorization, BasicPrefix) {
+			authorization = BasicPrefix + authorization
 		}
 
-		a.log(Debug, "found authentication query param ('%s': '%s'), moving to header", a.config.AuthenticationKey, authentication)
+		a.log(Debug, "found authorization query param ('%s': '%s'), moving to header", a.config.AuthorizationKey, authorization)
 
-		query.Del(a.config.AuthenticationKey)
+		query.Del(a.config.AuthorizationKey)
 		request.URL.RawQuery = query.Encode()
 
-		request.Header.Add(AuthenticationHeader, authentication)
+		request.Header.Add(AuthorizationHeader, authorization)
 
 		return
 	}
@@ -101,15 +102,15 @@ func (a *AuthHack) modifyRequest(request *http.Request) {
 		// Allow for not specifying a password
 		password := query.Get(a.config.PasswordKey)
 
-		authentication := BasicPrefix + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+		authorization := BasicPrefix + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
-		a.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", a.config.UsernameKey, username, a.config.PasswordKey, password, authentication)
+		a.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", a.config.UsernameKey, username, a.config.PasswordKey, password, authorization)
 
 		query.Del(a.config.UsernameKey)
 		query.Del(a.config.PasswordKey)
 		request.URL.RawQuery = query.Encode()
 
-		request.Header.Add(AuthenticationHeader, authentication)
+		request.Header.Add(AuthorizationHeader, authorization)
 
 		return
 	}
@@ -117,7 +118,7 @@ func (a *AuthHack) modifyRequest(request *http.Request) {
 	a.log(Debug, "found no headers or params")
 }
 
-const AuthenticationHeader = "Authentication"
+const AuthorizationHeader = "Authorization"
 const BasicPrefix = "Basic "
 
 type LogLevel int
