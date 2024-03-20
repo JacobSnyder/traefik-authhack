@@ -7,7 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 )
+
+/*
+TODO:
+- If keys are empty, that functionality should be disabled
+*/
 
 // Config is the configuration for the plugin.
 type Config struct {
@@ -76,6 +82,10 @@ func (a *AuthHack) modifyRequest(request *http.Request) {
 	query := request.URL.Query()
 
 	if authentication := query.Get(a.config.AuthenticationKey); authentication != "" {
+		if !strings.HasPrefix(authentication, BasicPrefix) {
+			authentication = BasicPrefix + authentication
+		}
+
 		a.log(Debug, "found authentication query param ('%s': '%s'), moving to header", a.config.AuthenticationKey, authentication)
 
 		query.Del(a.config.AuthenticationKey)
@@ -91,7 +101,7 @@ func (a *AuthHack) modifyRequest(request *http.Request) {
 		// Allow for not specifying a password
 		password := query.Get(a.config.PasswordKey)
 
-		authentication := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+		authentication := BasicPrefix + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
 		a.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", a.config.UsernameKey, username, a.config.PasswordKey, password, authentication)
 
@@ -108,6 +118,7 @@ func (a *AuthHack) modifyRequest(request *http.Request) {
 }
 
 const AuthenticationHeader = "Authentication"
+const BasicPrefix = "Basic "
 
 type LogLevel int
 

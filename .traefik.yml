@@ -7,3 +7,7 @@ import: github.com/traefik/authhack
 summary: 'Adds authentication headers from query parameters'
 
 testData:
+  UsernameKey: username
+  PasswordKey: password
+  AuthenticationKey: authentication
+  LogLevel: Warning
