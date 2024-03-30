@@ -26,6 +26,7 @@ const TestUsernameEncodedWithPrefix = "Basic dGVzdHVzZXJuYW1lOg=="
 const TestUsernameAndPasswordEncodedWithoutPrefix = "dGVzdHVzZXJuYW1lOnRlc3RwYXNzd29yZA=="
 const TestUsernameAndPasswordEncodedWithPrefix = "Basic dGVzdHVzZXJuYW1lOnRlc3RwYXNzd29yZA=="
 
+// TODO:
 // [ ] Auth Header with auth query param should send scrubbed request using auth header
 // [ ] Auth Header with username / password should send scrubbed request using auth header
 // [ ] Auth Header with auth cookie should send scrubbed request using auth header

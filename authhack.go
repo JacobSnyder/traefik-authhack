@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 )
 
 /*
 TODO:
-- Logs don't work (even if Traefik itself uses debug logs)
 - If keys are empty, that functionality should be disabled
 - Currently have to specify the log level as an int in Traefik config
 */
@@ -44,7 +42,7 @@ func CreateConfig() *Config {
 
 func (c *Config) log(level LogLevel, name, format string, args ...any) {
 	if level <= c.LogLevel {
-		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "AuthHack", name, level.String(), fmt.Sprintf(format, args...)))
+		fmt.Printf("%s (%s): %s: %s\n", "AuthHack", name, level.String(), fmt.Sprintf(format, args...))
 	}
 }
 
@@ -79,6 +77,9 @@ func (p *AuthHackPlugin) ServeHTTP(responseWriter http.ResponseWriter, request *
 
 	if hasAuthHeader {
 		// The request already has an auth header, prefer using that before anything from this plugin
+
+		p.log(Debug, "found authorization header, proxying request")
+
 		p.next.ServeHTTP(responseWriter, request)
 
 		return
@@ -88,6 +89,8 @@ func (p *AuthHackPlugin) ServeHTTP(responseWriter http.ResponseWriter, request *
 		// The request had auth specified by the query params that differs from the cookie (or the cookie isn't set),
 		// request that the client sets an auth cookie for subsequent requests and redirect them to the URL without
 		// query params set.
+
+		p.log(Debug, "cookie is unset or differs from provided auth, requesting redirect and set cookie")
 
 		// Set the cookie
 		cookie := &http.Cookie{
@@ -114,6 +117,9 @@ func (p *AuthHackPlugin) ServeHTTP(responseWriter http.ResponseWriter, request *
 
 	if !cookieAuthWithoutPrefix.IsEmpty() {
 		// Add auth from the cookie before finally sending the request downstream
+
+		p.log(Debug, "found cookie, moving to authorization header and proxying request")
+
 		request.Header.Add(AuthorizationHeader, cookieAuthWithoutPrefix.WithPrefix().String())
 	}
 
