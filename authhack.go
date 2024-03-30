@@ -2,7 +2,6 @@ package authhack
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -43,8 +42,14 @@ func CreateConfig() *Config {
 	}
 }
 
-// AuthHack is the plugin.
-type AuthHack struct {
+func (c *Config) log(level LogLevel, name, format string, args ...any) {
+	if level <= c.LogLevel {
+		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "AuthHack", name, level.String(), fmt.Sprintf(format, args...)))
+	}
+}
+
+// AuthHackPlugin is the plugin.
+type AuthHackPlugin struct {
 	next   http.Handler
 	config *Config
 	name   string
@@ -56,25 +61,25 @@ type AuthHack struct {
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	config.log(Info, name, "initializing")
 
-	return &AuthHack{
+	return &AuthHackPlugin{
 		config: config,
 		next:   next,
 		name:   name,
 	}, nil
 }
 
-func (a *AuthHack) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
-	a.log(Debug, "serving request '%s' ('%s')", request.URL, request.RequestURI)
+func (p *AuthHackPlugin) ServeHTTP(responseWriter http.ResponseWriter, request *http.Request) {
+	p.log(Debug, "serving request '%s' ('%s')", request.URL, request.RequestURI)
 
-	hasAuthHeader := a.hasAuthHeader(request)
+	hasAuthHeader := p.hasAuthHeader(request)
 
 	// Even if we have an auth header, invoke the other handlers so they can scrub the request
-	queryParamsAuthWithoutPrefix := a.getAndScrubAuthQueryParams(request)
-	cookieAuthWithoutPrefix := a.getAndScrubAuthCookie(request)
+	queryParamsAuthWithoutPrefix := p.getAndScrubAuthQueryParams(request)
+	cookieAuthWithoutPrefix := p.getAndScrubAuthCookie(request)
 
 	if hasAuthHeader {
 		// The request already has an auth header, prefer using that before anything from this plugin
-		a.next.ServeHTTP(responseWriter, request)
+		p.next.ServeHTTP(responseWriter, request)
 
 		return
 	}
@@ -86,9 +91,9 @@ func (a *AuthHack) ServeHTTP(responseWriter http.ResponseWriter, request *http.R
 
 		// Set the cookie
 		cookie := &http.Cookie{
-			Name:     a.config.CookieName,
+			Name:     p.config.CookieName,
 			Value:    queryParamsAuthWithoutPrefix.String(),
-			Domain:   a.config.CookieDomain,
+			Domain:   p.config.CookieDomain,
 			Secure:   true, // HTTPS only
 			HttpOnly: true, // Unavailable to JavaScript
 			SameSite: http.SameSiteStrictMode,
@@ -101,7 +106,7 @@ func (a *AuthHack) ServeHTTP(responseWriter http.ResponseWriter, request *http.R
 
 		_, err := responseWriter.Write(nil)
 		if err != nil {
-			a.log(Warning, "encountered error sending redirect response: %v", err)
+			p.log(Warning, "encountered error sending redirect response: %v", err)
 		}
 
 		return
@@ -112,34 +117,28 @@ func (a *AuthHack) ServeHTTP(responseWriter http.ResponseWriter, request *http.R
 		request.Header.Add(AuthorizationHeader, cookieAuthWithoutPrefix.WithPrefix().String())
 	}
 
-	a.next.ServeHTTP(responseWriter, request)
+	p.next.ServeHTTP(responseWriter, request)
 }
 
-func (c *Config) log(level LogLevel, name, format string, args ...any) {
-	if level <= c.LogLevel {
-		_, _ = os.Stdout.WriteString(fmt.Sprintf("%s (%s): %s: %s\n", "AuthHack", name, level.String(), fmt.Sprintf(format, args...)))
-	}
+func (p *AuthHackPlugin) log(level LogLevel, format string, args ...any) {
+	p.config.log(level, p.name, format, args...)
 }
 
-func (a *AuthHack) log(level LogLevel, format string, args ...any) {
-	a.config.log(level, a.name, format, args...)
-}
-
-func (a *AuthHack) hasAuthHeader(request *http.Request) bool {
+func (p *AuthHackPlugin) hasAuthHeader(request *http.Request) bool {
 	return request.Header.Get(AuthorizationHeader) != ""
 }
 
-func (a *AuthHack) getAndScrubAuthQueryParams(request *http.Request) encodedAuthWithoutPrefix {
+func (p *AuthHackPlugin) getAndScrubAuthQueryParams(request *http.Request) encodedAuthWithoutPrefix {
 	query := newQueryWrapper(request)
 
-	result := a.getAndScrubAuthQueryParam(query)
+	result := p.getAndScrubAuthQueryParam(query)
 
 	// Even if we already have a result, continue to run the remaining handlers so they all get a chance to sanitize the request
-	userAndPassResult := a.getAndScrubUserPassQueryParams(query)
+	userAndPassResult := p.getAndScrubUserPassQueryParams(query)
 	if result.IsEmpty() {
 		result = userAndPassResult
 	} else if result != userAndPassResult {
-		a.log(Info, "found both authorization query param and username / password query params that are mismatched, using authorization query param")
+		p.log(Info, "found both authorization query param and username / password query params that are mismatched, using authorization query param")
 	}
 
 	query.Apply()
@@ -147,45 +146,45 @@ func (a *AuthHack) getAndScrubAuthQueryParams(request *http.Request) encodedAuth
 	return result
 }
 
-func (a *AuthHack) getAndScrubAuthQueryParam(query *requestQueryWrapper) encodedAuthWithoutPrefix {
+func (p *AuthHackPlugin) getAndScrubAuthQueryParam(query *requestQueryWrapper) encodedAuthWithoutPrefix {
 	var result encodedAuthWithoutPrefix
 
-	if authorization := query.Get(a.config.AuthorizationQueryParam); authorization != "" {
+	if authorization := query.Get(p.config.AuthorizationQueryParam); authorization != "" {
 		result = newEncodedAuthWithoutPrefix(authorization)
 
-		a.log(Debug, "found authorization query param ('%s': '%s'), moving to header", a.config.AuthorizationQueryParam, result)
+		p.log(Debug, "found authorization query param ('%s': '%s'), moving to header", p.config.AuthorizationQueryParam, result)
 
-		query.Del(a.config.AuthorizationQueryParam)
+		query.Del(p.config.AuthorizationQueryParam)
 	}
 
 	return result
 }
 
-func (a *AuthHack) getAndScrubUserPassQueryParams(query *requestQueryWrapper) encodedAuthWithoutPrefix {
+func (p *AuthHackPlugin) getAndScrubUserPassQueryParams(query *requestQueryWrapper) encodedAuthWithoutPrefix {
 	var result encodedAuthWithoutPrefix
 
-	if username := query.Get(a.config.UsernameQueryParam); username != "" {
+	if username := query.Get(p.config.UsernameQueryParam); username != "" {
 		// Allow for not specifying a password
-		password := query.Get(a.config.PasswordQueryParam)
+		password := query.Get(p.config.PasswordQueryParam)
 
 		result = encodeAuthWithoutPrefix(username, password)
 
-		a.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", a.config.UsernameQueryParam, username, a.config.PasswordQueryParam, password, result.String())
+		p.log(Debug, "found username and password query params ('%s': '%s' / '%s': '%s'), moving to header ('%s')", p.config.UsernameQueryParam, username, p.config.PasswordQueryParam, password, result.String())
 
-		query.Del(a.config.UsernameQueryParam)
-		query.Del(a.config.PasswordQueryParam)
+		query.Del(p.config.UsernameQueryParam)
+		query.Del(p.config.PasswordQueryParam)
 	}
 
 	return result
 }
 
-func (a *AuthHack) getAndScrubAuthCookie(request *http.Request) encodedAuthWithoutPrefix {
+func (p *AuthHackPlugin) getAndScrubAuthCookie(request *http.Request) encodedAuthWithoutPrefix {
 	cookies := request.Cookies()
 	for _, cookie := range cookies {
-		if cookie.Name == a.config.CookieName {
-			a.log(Debug, "found cookie ('%s': '%s'), removing from request", cookie.Name, cookie.Value)
+		if cookie.Name == p.config.CookieName {
+			p.log(Debug, "found cookie ('%s': '%s'), removing from request", cookie.Name, cookie.Value)
 
-			a.removeCookie(request, cookies, cookie)
+			p.removeCookie(request, cookies, cookie)
 
 			return newEncodedAuthWithoutPrefix(cookie.Value)
 		}
@@ -194,7 +193,7 @@ func (a *AuthHack) getAndScrubAuthCookie(request *http.Request) encodedAuthWitho
 	return emptyEncodedAuthWithoutPrefix
 }
 
-func (a *AuthHack) removeCookie(request *http.Request, cookies []*http.Cookie, cookie *http.Cookie) {
+func (p *AuthHackPlugin) removeCookie(request *http.Request, cookies []*http.Cookie, cookie *http.Cookie) {
 	if cookies == nil {
 		cookies = request.Cookies()
 	}
@@ -212,52 +211,4 @@ func (a *AuthHack) removeCookie(request *http.Request, cookies []*http.Cookie, c
 
 		request.AddCookie(otherCookie)
 	}
-}
-
-type LogLevel int
-
-const (
-	None = iota
-	Error
-	Warning
-	Info
-	Verbose
-	Debug
-	All
-)
-
-func (l *LogLevel) String() string {
-	return [...]string{"None", "Error", "Warning", "Info", "Verbose", "Debug", "All"}[*l]
-}
-
-func (l *LogLevel) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.String())
-}
-
-func (l *LogLevel) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
-	}
-
-	switch s {
-	case "None":
-		*l = None
-	case "Error":
-		*l = Error
-	case "Warning":
-		*l = Warning
-	case "Info":
-		*l = Info
-	case "Verbose":
-		*l = Verbose
-	case "Debug":
-		*l = Debug
-	case "All":
-		*l = All
-	default:
-		return fmt.Errorf("invalid LogLevel '%s'", s)
-	}
-
-	return nil
 }
