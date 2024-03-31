@@ -22,7 +22,6 @@ const TestURL = "https://localhost"
 const TestUsername = "testusername"
 const TestPassword = "testpassword"
 const TestUsernameEncodedWithoutPrefix = "dGVzdHVzZXJuYW1lOg=="
-const TestUsernameEncodedWithPrefix = "Basic dGVzdHVzZXJuYW1lOg=="
 const TestUsernameAndPasswordEncodedWithoutPrefix = "dGVzdHVzZXJuYW1lOnRlc3RwYXNzd29yZA=="
 const TestUsernameAndPasswordEncodedWithPrefix = "Basic dGVzdHVzZXJuYW1lOnRlc3RwYXNzd29yZA=="
 
@@ -173,7 +172,7 @@ func TestAuthHack_ServeHTTP_AuthCookie(t *testing.T) {
 	config := createTestConfig()
 
 	request, response := serveHTTP(t, config, func(request *http.Request) {
-		request.AddCookie(&http.Cookie{Name: config.CookieName, Value: TestUsernameAndPasswordEncodedWithoutPrefix})
+		request.AddCookie(&http.Cookie{Name: DefaultCookieName, Value: TestUsernameAndPasswordEncodedWithoutPrefix})
 	})
 
 	assertProxiedDefaultAuth(t, request, response, config)
@@ -298,6 +297,9 @@ func assertRedirected(t *testing.T, request *http.Request, response *httptest.Re
 			}
 			if cookie.Domain != config.CookieDomain {
 				t.Errorf("expected cookie domain to be '%s' but found '%s'", config.CookieDomain, cookie.Domain)
+			}
+			if cookie.Path != config.CookiePath {
+				t.Errorf("expected cookie path to be '%s' but found '%s'", config.CookiePath, cookie.Path)
 			}
 			if !cookie.Secure {
 				t.Errorf("expected cookie to be secure but found '%v'", cookie.Secure)

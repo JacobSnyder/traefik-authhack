@@ -24,6 +24,7 @@ type Config struct {
 
 	CookieName   string `json:",omitempty"`
 	CookieDomain string `json:",omitempty"`
+	CookiePath   string `json:",omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -37,6 +38,7 @@ func CreateConfig() *Config {
 
 		CookieName:   "traefik-authhack",
 		CookieDomain: "",
+		CookiePath:   "/",
 	}
 }
 
@@ -97,6 +99,7 @@ func (p *AuthHackPlugin) ServeHTTP(responseWriter http.ResponseWriter, request *
 			Name:     p.config.CookieName,
 			Value:    queryParamsAuthWithoutPrefix.String(),
 			Domain:   p.config.CookieDomain,
+			Path:     p.config.CookiePath,
 			Secure:   true, // HTTPS only
 			HttpOnly: true, // Unavailable to JavaScript
 			SameSite: http.SameSiteStrictMode,
