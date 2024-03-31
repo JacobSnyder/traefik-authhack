@@ -1,270 +1,57 @@
-This repository includes an example plugin, `demo`, for you to use as a reference for developing your own plugins.
+# Overview
 
-[![Build Status](https://github.com/traefik/plugindemo/workflows/Main/badge.svg?branch=master)](https://github.com/traefik/plugindemo/actions)
+This is a [Traefik plugin](https://doc.traefik.io/traefik/plugins/) that adds the ability to populate HTTP Basic Authorization headers from URL Query Parameters. Credentials can be provided either as a username and password (via the `username` and `password` query parameters, for example: `https://example.com/?username=username&password=password`) or as an encoded username and password (via the `authorization` query parameter, for example: `https://example.com/?authorization=...`).
 
-The existing plugins can be browsed into the [Plugin Catalog](https://plugins.traefik.io).
+This is intended to work similarly to browser authorization like `https://username:password@example.com/` except that 1) it isn't deprecated in Chrome (and probably Firefox eventually) and 2) it works in iFrames. My use case for this is to save credentials into bookmarks and [Organizr](https://docs.organizr.app/). This works well with [Traefik's BasicAuth Middleware](https://doc.traefik.io/traefik/middlewares/http/basicauth/).
 
-# Developing a Traefik plugin
+This plugin operates in the following manner:
 
-[Traefik](https://traefik.io) plugins are developed using the [Go language](https://golang.org).
+1. The client sends a request, specifying credentials via URL Query Parameters.
+2. The plugin detects credentials in the URL Query Parameters. It intercepts the request, sending a HTTP 307 (Temporary Redirect) response to the client, redirecting it to the same URL but with the credentials removed and with a `Set-Cookie` header that stores the encoded credentials.
+3. The client sets the authentication cookie and sends a new request to the redirected URL, providing the credentials in the cookie.
+4. The plugin detects credentials in the cookie. It adds an `Authorization` header to the request with the credentials and removes the cookie and then sends it along.
+5. Profit! The downstream service receives the request with authentication provided via the `Authorization` header.
 
-A [Traefik](https://traefik.io) middleware plugin is just a [Go package](https://golang.org/ref/spec#Packages) that provides an `http.Handler` to perform specific processing of requests and responses.
+# Disclaimer!
 
-Rather than being pre-compiled and linked, however, plugins are executed on the fly by [Yaegi](https://github.com/traefik/yaegi), an embedded Go interpreter.
+It probably isn't wise to use this in a sensitive production environment, particularly because the encoded username and password are saved in a cookie. For this reason, I've chosen not to publish this plugin in the [Traefik Plugin Catalog](https://plugins.traefik.io/plugins), which creates some amount of friction in using this plugin.
 
-## Usage
+# Usage
 
-For a plugin to be active for a given Traefik instance, it must be declared in the static configuration.
+Since this should only be used with caution, this isn't published to the catalog (see previous section). Therefore, to use this plugin, you'll need to clone the plugin locally. This is documented by Traefik [in their docs](https://plugins.traefik.io/install) and [in their example plugin](https://github.com/traefik/plugindemo?tab=readme-ov-file#local-mode), but the tl;dr is as follows:
 
-Plugins are parsed and loaded exclusively during startup, which allows Traefik to check the integrity of the code and catch errors early on.
-If an error occurs during loading, the plugin is disabled.
-
-For security reasons, it is not possible to start a new plugin or modify an existing one while Traefik is running.
-
-Once loaded, middleware plugins behave exactly like statically compiled middlewares.
-Their instantiation and behavior are driven by the dynamic configuration.
-
-Plugin dependencies must be [vendored](https://golang.org/ref/mod#vendoring) for each plugin.
-Vendored packages should be included in the plugin's GitHub repository. ([Go modules](https://blog.golang.org/using-go-modules) are not supported.)
-
-### Configuration
-
-For each plugin, the Traefik static configuration must define the module name (as is usual for Go packages).
-
-The following declaration (given here in YAML) defines a plugin:
-
+1. Clone the repo locally. Assuming your Traefik configs are configured as a Docker volume like `./traefik/data:/etc/traefik`, clone into `./traefik/plugins-local/src/github.com/JacobSnyder/traefik_authhack` and add a volume `./traefik/plugins-local:/plugins-local`
+2. In the static `traefik.yaml`, add:
 ```yaml
-# Static configuration
-
-experimental:
-  plugins:
-    example:
-      moduleName: github.com/traefik/plugindemo
-      version: v0.2.1
-```
-
-Here is an example of a file provider dynamic configuration (given here in YAML), where the interesting part is the `http.middlewares` section:
-
-```yaml
-# Dynamic configuration
-
-http:
-  routers:
-    my-router:
-      rule: host(`demo.localhost`)
-      service: service-foo
-      entryPoints:
-        - web
-      middlewares:
-        - my-plugin
-
-  services:
-   service-foo:
-      loadBalancer:
-        servers:
-          - url: http://127.0.0.1:5000
-  
-  middlewares:
-    my-plugin:
-      plugin:
-        example:
-          headers:
-            Foo: Bar
-```
-
-### Local Mode
-
-Traefik also offers a developer mode that can be used for temporary testing of plugins not hosted on GitHub.
-To use a plugin in local mode, the Traefik static configuration must define the module name (as is usual for Go packages) and a path to a [Go workspace](https://golang.org/doc/gopath_code.html#Workspaces), which can be the local GOPATH or any directory.
-
-The plugins must be placed in `./plugins-local` directory,
-which should be in the working directory of the process running the Traefik binary.
-The source code of the plugin should be organized as follows:
-
-```
-./plugins-local/
-    └── src
-        └── github.com
-            └── traefik
-                └── plugindemo
-                    ├── demo.go
-                    ├── demo_test.go
-                    ├── go.mod
-                    ├── LICENSE
-                    ├── Makefile
-                    └── readme.md
-```
-
-```yaml
-# Static configuration
-
 experimental:
   localPlugins:
-    example:
-      moduleName: github.com/traefik/plugindemo
+    authhack:
+      moduleName: github.com/JacobSnyder/traefik_authhack
 ```
-
-(In the above example, the `plugindemo` plugin will be loaded from the path `./plugins-local/src/github.com/traefik/plugindemo`.)
-
+3. Declare middleware using the plugin. For example, in your `dyanamic.yaml` file (see "Configuration" section below).
 ```yaml
-# Dynamic configuration
-
-http:
-  routers:
-    my-router:
-      rule: host(`demo.localhost`)
-      service: service-foo
-      entryPoints:
-        - web
-      middlewares:
-        - my-plugin
-
-  services:
-   service-foo:
-      loadBalancer:
-        servers:
-          - url: http://127.0.0.1:5000
-  
-  middlewares:
-    my-plugin:
-      plugin:
-        example:
-          headers:
-            Foo: Bar
+authhack-example:
+  plugin:
+    authhack:
+      logLevel: 2 # Warning = 2, All = 6
 ```
+4. Configure endpoint(s) to use the middleware.
+5. Restart Traefik: `docker restart traefik`.
+6. Monitor logs for errors: `docker logs --tail 1000 --follow  traefik`.
 
-## Defining a Plugin
+# Configuration
 
-A plugin package must define the following exported Go objects:
-
-- A type `type Config struct { ... }`. The struct fields are arbitrary.
-- A function `func CreateConfig() *Config`.
-- A function `func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error)`.
-
-```go
-// Package example a example plugin.
-package example
-
-import (
-	"context"
-	"net/http"
-)
-
-// Config the plugin configuration.
-type Config struct {
-	// ...
-}
-
-// CreateConfig creates the default plugin configuration.
-func CreateConfig() *Config {
-	return &Config{
-		// ...
-	}
-}
-
-// Example a plugin.
-type Example struct {
-	next     http.Handler
-	name     string
-	// ...
-}
-
-// New created a new plugin.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	// ...
-	return &Example{
-		// ...
-	}, nil
-}
-
-func (e *Example) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// ...
-	e.next.ServeHTTP(rw, req)
-}
-```
-
-## Logs
-
-Currently, the only way to send logs to Traefik is to use `os.Stdout.WriteString("...")` or `os.Stderr.WriteString("...")`.
-
-In the future, we will try to provide something better and based on levels.
-
-## Plugins Catalog
-
-Traefik plugins are stored and hosted as public GitHub repositories.
-
-Every 30 minutes, the Plugins Catalog online service polls Github to find plugins and add them to its catalog.
-
-### Prerequisites
-
-To be recognized by Plugins Catalog, your repository must meet the following criteria:
-
-- The `traefik-plugin` topic must be set.
-- The `.traefik.yml` manifest must exist, and be filled with valid contents.
-
-If your repository fails to meet either of these prerequisites, Plugins Catalog will not see it.
-
-### Manifest
-
-A manifest is also mandatory, and it should be named `.traefik.yml` and stored at the root of your project.
-
-This YAML file provides Plugins Catalog with information about your plugin, such as a description, a full name, and so on.
-
-Here is an example of a typical `.traefik.yml`file:
-
-```yaml
-# The name of your plugin as displayed in the Plugins Catalog web UI.
-displayName: Name of your plugin
-
-# For now, `middleware` is the only type available.
-type: middleware
-
-# The import path of your plugin.
-import: github.com/username/my-plugin
-
-# A brief description of what your plugin is doing.
-summary: Description of what my plugin is doing
-
-# Medias associated to the plugin (optional)
-iconPath: foo/icon.png
-bannerPath: foo/banner.png
-
-# Configuration data for your plugin.
-# This is mandatory,
-# and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
-testData:
-  Headers:
-    Foo: Bar
-```
-
-Properties include:
-
-- `displayName` (required): The name of your plugin as displayed in the Plugins Catalog web UI.
-- `type` (required): For now, `middleware` is the only type available.
-- `import` (required): The import path of your plugin.
-- `summary` (required): A brief description of what your plugin is doing.
-- `testData` (required): Configuration data for your plugin. This is mandatory, and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
-- `iconPath` (optional): A local path in the repository to the icon of the project.
-- `bannerPath` (optional): A local path in the repository to the image that will be used when you will share your plugin page in social medias.
-
-There should also be a `go.mod` file at the root of your project. Plugins Catalog will use this file to validate the name of the project.
-
-### Tags and Dependencies
-
-Plugins Catalog gets your sources from a Go module proxy, so your plugins need to be versioned with a git tag.
-
-Last but not least, if your plugin middleware has Go package dependencies, you need to vendor them and add them to your GitHub repository.
-
-If something goes wrong with the integration of your plugin, Plugins Catalog will create an issue inside your Github repository and will stop trying to add your repo until you close the issue.
-
-## Troubleshooting
-
-If Plugins Catalog fails to recognize your plugin, you will need to make one or more changes to your GitHub repository.
-
-In order for your plugin to be successfully imported by Plugins Catalog, consult this checklist:
-
-- The `traefik-plugin` topic must be set on your repository.
-- There must be a `.traefik.yml` file at the root of your project describing your plugin, and it must have a valid `testData` property for testing purposes.
-- There must be a valid `go.mod` file at the root of your project.
-- Your plugin must be versioned with a git tag.
-- If you have package dependencies, they must be vendored and added to your GitHub repository.
+- `LogLevel` - Describes the level of logging from the plugin. Note that to use this, the static `traefik.yaml` must be configured to use debug logging (`log: level: debug`). The levels are as follows:
+  - 0: None
+  - 1: Error
+  - 2: Warning (default)
+  - 3: Info
+  - 4: Verbose
+  - 5: Debug (caution, this will log credentials!)
+  - 6: All
+- `UsernameQueryParam` - Configures the username query parameter name (default: "username").
+- `PasswordQueryParam` - Configures the password query parameter name (default: "password").
+- `AuthorizationQueryParam` - Configures the authorization query parameter name (default: "authorization").
+- `CookieName` - Configures the name of the cookie (default: "traefik-authhack").
+- `CookieDomian` - Configures the domain of the cookie (default: ""). For more information, see the "Domain Attribute" section of [MDN's Using HTTP Cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#define_where_cookies_are_sent).
+- `CookiePath` - Configures the path of the cookie (default: "/"). For more information, see the "Path Attribute" section of [MDN's Using HTTP Cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#define_where_cookies_are_sent).

@@ -1,4 +1,4 @@
-package authhack
+package traefik_authhack
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package authhack_test
+package traefik_authhack_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/traefik/authhack"
+	"github.com/JacobSnyder/traefik-authhack"
 )
 
 const DefaultAuthorizationQueryParam = "authorization"
@@ -48,7 +48,7 @@ const TestUsernameAndPasswordEncodedWithPrefix = "Basic dGVzdHVzZXJuYW1lOnRlc3Rw
 // [ ] Different config values
 
 func TestAuthHack_ConfigMarshallUnmarshall(t *testing.T) {
-	expectedConfig := authhack.CreateConfig()
+	expectedConfig := traefik_authhack.CreateConfig()
 
 	_, _ = os.Stdout.WriteString(fmt.Sprintf("Expected Config: %v\n", expectedConfig))
 
@@ -59,7 +59,7 @@ func TestAuthHack_ConfigMarshallUnmarshall(t *testing.T) {
 
 	_, _ = os.Stdout.WriteString(fmt.Sprintf("JSON: %v\n", string(configJson)))
 
-	var actualConfig authhack.Config
+	var actualConfig traefik_authhack.Config
 	err = json.Unmarshal(configJson, &actualConfig)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +80,7 @@ func TestAuthHack_ServeHTTP_AuthHeader(t *testing.T) {
 	config := createTestConfig()
 
 	request, response := serveHTTP(t, config, func(request *http.Request) {
-		request.Header.Add(authhack.AuthorizationHeader, TestUsernameAndPasswordEncodedWithPrefix)
+		request.Header.Add(traefik_authhack.AuthorizationHeader, TestUsernameAndPasswordEncodedWithPrefix)
 	})
 
 	assertProxiedDefaultAuth(t, request, response, config)
@@ -178,21 +178,21 @@ func TestAuthHack_ServeHTTP_AuthCookie(t *testing.T) {
 	assertProxiedDefaultAuth(t, request, response, config)
 }
 
-func createTestConfig() *authhack.Config {
-	config := authhack.CreateConfig()
-	config.LogLevel = authhack.All
+func createTestConfig() *traefik_authhack.Config {
+	config := traefik_authhack.CreateConfig()
+	config.LogLevel = traefik_authhack.All
 
 	return config
 }
 
-func serveHTTP(t *testing.T, config *authhack.Config, requestSetup func(request *http.Request)) (*http.Request, *httptest.ResponseRecorder) {
+func serveHTTP(t *testing.T, config *traefik_authhack.Config, requestSetup func(request *http.Request)) (*http.Request, *httptest.ResponseRecorder) {
 	ctx := context.Background()
 	var nextRequest *http.Request
 	next := http.HandlerFunc(func(rw http.ResponseWriter, request *http.Request) {
 		nextRequest = request
 	})
 
-	handler, err := authhack.New(ctx, next, config, "test")
+	handler, err := traefik_authhack.New(ctx, next, config, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func serveHTTP(t *testing.T, config *authhack.Config, requestSetup func(request 
 	return nextRequest, recorder
 }
 
-func assertProxied(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *authhack.Config, expectedAuthHeader string) {
+func assertProxied(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *traefik_authhack.Config, expectedAuthHeader string) {
 	if request == nil {
 		t.Fatalf("expected request to be proxied - request should be set")
 	}
@@ -228,11 +228,11 @@ func assertProxied(t *testing.T, request *http.Request, response *httptest.Respo
 	assertRequestAuthorizationHeader(t, request, expectedAuthHeader)
 }
 
-func assertProxiedDefaultAuth(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *authhack.Config) {
+func assertProxiedDefaultAuth(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *traefik_authhack.Config) {
 	assertProxied(t, request, response, config, TestUsernameAndPasswordEncodedWithPrefix)
 }
 
-func assertRequestScrubbed(t *testing.T, request *http.Request, config *authhack.Config) {
+func assertRequestScrubbed(t *testing.T, request *http.Request, config *traefik_authhack.Config) {
 	assertRequestQueryParamScrubbed(t, request, config.AuthorizationQueryParam)
 	assertRequestQueryParamScrubbed(t, request, config.UsernameQueryParam)
 	assertRequestQueryParamScrubbed(t, request, config.PasswordQueryParam)
@@ -261,10 +261,10 @@ func assertRequestHeader(t *testing.T, request *http.Request, key, expected stri
 }
 
 func assertRequestAuthorizationHeader(t *testing.T, request *http.Request, expected string) {
-	assertRequestHeader(t, request, authhack.AuthorizationHeader, expected)
+	assertRequestHeader(t, request, traefik_authhack.AuthorizationHeader, expected)
 }
 
-func assertRedirected(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *authhack.Config, expectedAuth string) {
+func assertRedirected(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *traefik_authhack.Config, expectedAuth string) {
 	if request != nil {
 		t.Errorf("expected redirect - request should not be set")
 	}
@@ -314,7 +314,7 @@ func assertRedirected(t *testing.T, request *http.Request, response *httptest.Re
 	}
 }
 
-func assertRedirectedDefaultAuth(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *authhack.Config) {
+func assertRedirectedDefaultAuth(t *testing.T, request *http.Request, response *httptest.ResponseRecorder, config *traefik_authhack.Config) {
 	assertRedirected(t, request, response, config, TestUsernameAndPasswordEncodedWithoutPrefix)
 }
 

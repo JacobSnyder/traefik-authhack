@@ -2,12 +2,15 @@ displayName: Auth Hack
 type: middleware
 iconPath: .assets/icon.png
 
-import: github.com/traefik/authhack
+import: github.com/JacobSnyder/traefik-authhack
 
-summary: 'Adds authorization headers from query parameters'
+summary: 'Adds HTTP authorization headers from query parameters'
 
 testData:
+  LogLevel: Warning
   UsernameKey: username
   PasswordKey: password
   AuthenticationKey: authentication
-  LogLevel: Warning
+  CookieName: traefik-authhack
+  CookieDomain: ""
+  CookiePath: "/"

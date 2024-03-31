@@ -1,3 +1,3 @@
-module github.com/traefik/authhack
+module github.com/JacobSnyder/traefik-authhack
 
 go 1.19

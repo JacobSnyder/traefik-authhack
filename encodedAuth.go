@@ -1,4 +1,4 @@
-package authhack
+package traefik_authhack
 
 import (
 	"encoding/base64"
@@ -9,6 +9,8 @@ type encodedAuthWithoutPrefix string
 type encodedAuthWithPrefix string
 
 const emptyEncodedAuthWithoutPrefix = (encodedAuthWithoutPrefix)("")
+
+//goland:noinspection GoUnusedConst
 const emptyEncodedAuthWithPrefix = (encodedAuthWithPrefix)("")
 
 const basicPrefix = "Basic "
@@ -36,10 +38,12 @@ func (a encodedAuthWithoutPrefix) IsEmpty() bool {
 	return a == ""
 }
 
+//goland:noinspection GoUnusedFunction
 func newEncodedAuthWithPrefix(encodedAuth string) encodedAuthWithPrefix {
 	return newEncodedAuthWithoutPrefix(encodedAuth).WithPrefix()
 }
 
+//goland:noinspection GoUnusedFunction
 func encodeAuthWithPrefix(username, password string) encodedAuthWithPrefix {
 	return encodeAuthWithoutPrefix(username, password).WithPrefix()
 }
